@@ -80,6 +80,7 @@ class CodeGenerator:
                 and functions according to the requirements specified in the document.
                 Output only the code,without python marker, without any markdown formatting,without any code block markers(e.g. python, ```), or any additional text and only import 'os'.
                 Generate a single root folder generated_project.
+                also, Generate unit test cases for the specified requirements using pytest framework. 
                 """       
         )
         chain = prompt | self.llm
