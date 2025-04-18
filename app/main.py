@@ -1,11 +1,10 @@
 from fastapi import FastAPI
-from core.config import settings
-from api.base import api_router
+from config.config import settings
+from api.router import api_router
 
-def start_application():
+def start_server():
     app = FastAPI(title=settings.PROJECT_NAME, version=settings.PROJECT_VERSION)
     app.include_router(api_router)
     return app
 
-
-app = start_application()
+app = start_server()

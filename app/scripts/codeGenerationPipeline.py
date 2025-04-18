@@ -10,9 +10,13 @@ from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.document_loaders import Docx2txtLoader
 from langgraph.graph import StateGraph, START, END
 import zipfile
+from config.config import settings
 
 load_dotenv()
-class Data(TypedDict):
+
+# --- Typed State Definitions ---
+
+class RequirementComponents(TypedDict):
     api_endpoints: List[str]
     auth_requirements: List[str]
     backend_logic: List[str]
@@ -23,7 +27,10 @@ class State(TypedDict):
     parsed_data: str
     folder_structure: str
 
-class CodeGenerator:
+
+# --- Code Generator Pipeline ---
+
+class CodeGeneratorPipeline:
     def __init__(self):
         self.llm = ChatGroq(
             model="llama-3.3-70b-versatile",
@@ -34,9 +41,9 @@ class CodeGenerator:
             api_key=os.getenv("GROQ_API_KEY"),
         )
         self.folder_structure = self._load_folder_structure()
-        self.graph_executor = self._generate_graph()
+        self.graph_executor = self._build_execution_graph()
     
-    def zip_folder(self, folder_path, output_path):
+    def _zip_output_folder(self, folder_path, output_path):
         with zipfile.ZipFile(output_path, 'w') as zip_file:
             for root, _, files in os.walk(folder_path):
                 for file in files:
@@ -49,7 +56,7 @@ class CodeGenerator:
         loader = Docx2txtLoader("./assets/folderStructure.docx")
         return loader.load()
 
-    def extract_text(self, state: State) -> State:
+    def extract_text_from_raw_document(self, state: State) -> State:
         print("\nExtracting text from uploaded DOCX file...")
         doc = Document(BytesIO(state["document"]))
         full_text = "\n".join([p.text for p in doc.paragraphs])
@@ -95,19 +102,17 @@ class CodeGenerator:
 
         try:
             subprocess.run(["python", script_path], check=True)
-            self.zip_folder("generated_project", "generated_project.zip")
+            self._zip_output_folder(settings.GENRATED_PROJECT_NAME, settings.GENERATED_PROJECT_ZIP_NAME)
         except subprocess.CalledProcessError as error:
             print(f"Error running script: {error}")
 
         return state
 
-    def _generate_graph(self):
+    def _build_execution_graph(self):
         workflow = StateGraph(State)
-
-        workflow.add_node("extract_text", self.extract_text)
+        workflow.add_node("extract_text", self.extract_text_from_raw_document)
         workflow.add_node("analyse_document", self.analyse_document)
         workflow.add_node("generate_code", self.generate_code)
-
         workflow.add_edge(START,"extract_text")
         workflow.add_edge("extract_text", "analyse_document")
         workflow.add_edge("analyse_document", "generate_code")
@@ -115,7 +120,7 @@ class CodeGenerator:
 
         return workflow.compile()
 
-    def run(self, file_bytes: bytes):
+    def run_pipeline(self, file_bytes: bytes):
         initial_state = {
             "document": file_bytes,
             "parsed_data": "",
@@ -123,4 +128,4 @@ class CodeGenerator:
         }
         return self.graph_executor.invoke(initial_state)
 
-code_generator = CodeGenerator()
+code_generator = CodeGeneratorPipeline()
